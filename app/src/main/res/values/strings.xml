@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">NoMapTips</string>
+    <string name="xposed_desc">Disables Google Maps "location accuracy tips"</string>
+</resources>
