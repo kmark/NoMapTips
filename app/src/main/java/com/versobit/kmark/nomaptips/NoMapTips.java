@@ -31,10 +31,10 @@ public final class NoMapTips implements IXposedHookLoadPackage {
 
     private static final String MAPS_PKG_NAME = "com.google.android.apps.maps";
 
-    private static final String GMM_UTIL_SOME_SIMPLE_INTERFACE = "com.google.android.apps.gmm.util.p";
+    private static final String GMM_UTIL_SOME_SIMPLE_INTERFACE = "com.google.android.apps.gmm.util.n";
 
-    // public final a(ZLcom/google/android/apps/gmm/util/p;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
-    private static final String GMM_UTIL_DIALOG_CLASS = "com.google.android.apps.gmm.util.k";
+    // public final a(ZLcom/google/android/apps/gmm/util/n;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
+    private static final String GMM_UTIL_DIALOG_CLASS = "com.google.android.apps.gmm.util.i";
     private static final String GMM_UTIL_DIALOG_METHOD = "a";
 
     @Override

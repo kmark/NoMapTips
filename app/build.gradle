@@ -20,10 +20,10 @@ android {
 
     defaultConfig {
         applicationId "com.versobit.kmark.nomaptips"
-        minSdkVersion 15
+        minSdkVersion 18
         targetSdkVersion 21
-        versionCode 1
-        versionName "1.0-" + gitRev()
+        versionCode 2
+        versionName "1.1-" + gitRev()
     }
 }
 
