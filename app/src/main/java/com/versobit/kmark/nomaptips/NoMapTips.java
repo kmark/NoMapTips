@@ -19,6 +19,7 @@
 
 package com.versobit.kmark.nomaptips;
 
+import android.content.Context;
 import android.content.Intent;
 import android.provider.Settings;
 
@@ -31,11 +32,11 @@ public final class NoMapTips implements IXposedHookLoadPackage {
 
     private static final String MAPS_PKG_NAME = "com.google.android.apps.maps";
 
-    private static final String GMM_UTIL_SOME_SIMPLE_INTERFACE = "com.google.android.apps.gmm.util.n";
+    private static final int MAPS_VERSION_900 = 900029103;
 
-    // public final a(ZLcom/google/android/apps/gmm/util/n;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
-    private static final String GMM_UTIL_DIALOG_CLASS = "com.google.android.apps.gmm.util.i";
-    private static final String GMM_UTIL_DIALOG_METHOD = "a";
+    private static final String ACTIVITY_THREAD_CLASS = "android.app.ActivityThread";
+    private static final String ACTIVITY_THREAD_CURRENTACTHREAD = "currentActivityThread";
+    private static final String ACTIVITY_THREAD_GETSYSCTX = "getSystemContext";
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
@@ -43,14 +44,37 @@ public final class NoMapTips implements IXposedHookLoadPackage {
             return;
         }
 
+        Object activityThread = XposedHelpers.callStaticMethod(
+                XposedHelpers.findClass(ACTIVITY_THREAD_CLASS, null),
+                ACTIVITY_THREAD_CURRENTACTHREAD);
+        Context systemCtx = (Context)XposedHelpers.callMethod(activityThread, ACTIVITY_THREAD_GETSYSCTX);
+        int mapsVersion = systemCtx.getPackageManager().getPackageInfo(MAPS_PKG_NAME, 0).versionCode;
+
+        String gmmUtilSomeSimpleInterface;
+        String gmmUtilDialogClass;
+        String gmmUtilDialogMethod;
+
+        if(mapsVersion >= MAPS_VERSION_900) {
+            gmmUtilSomeSimpleInterface = "com.google.android.apps.gmm.util.n";
+            // public final a(ZLcom/google/android/apps/gmm/util/n;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
+            gmmUtilDialogClass = "com.google.android.apps.gmm.util.i";
+            gmmUtilDialogMethod = "a";
+        } else {
+            // Maps 8 (and possibly before)
+            gmmUtilSomeSimpleInterface = "com.google.android.apps.gmm.util.p";
+            // public final a(ZLcom/google/android/apps/gmm/util/p;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
+            gmmUtilDialogClass = "com.google.android.apps.gmm.util.k";
+            gmmUtilDialogMethod = "a";
+        }
+
         // We're hooking onto a utility method that creates and displays dialogs (like tips).
         // It's passed an Intent for a button's action. We can read this Intent to figure out what's
         // going on. Much more reliable than attempting to read resource values (like the dialog
         // title) which could change at any time or be dependent on language. False-positive rate
         // should be pretty low.
-        Class someInterface = XposedHelpers.findClass(GMM_UTIL_SOME_SIMPLE_INTERFACE, loadPackageParam.classLoader);
-        XposedHelpers.findAndHookMethod(GMM_UTIL_DIALOG_CLASS, loadPackageParam.classLoader,
-                GMM_UTIL_DIALOG_METHOD, boolean.class, someInterface, int.class, CharSequence.class,
+        Class someInterface = XposedHelpers.findClass(gmmUtilSomeSimpleInterface, loadPackageParam.classLoader);
+        XposedHelpers.findAndHookMethod(gmmUtilDialogClass, loadPackageParam.classLoader,
+                gmmUtilDialogMethod, boolean.class, someInterface, int.class, CharSequence.class,
                 int.class, Intent.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
