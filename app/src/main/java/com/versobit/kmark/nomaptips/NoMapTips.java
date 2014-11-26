@@ -33,6 +33,7 @@ public final class NoMapTips implements IXposedHookLoadPackage {
     private static final String MAPS_PKG_NAME = "com.google.android.apps.maps";
 
     private static final int MAPS_VERSION_900 = 900029103;
+    private static final int MAPS_VERSION_910 = 901010000;
 
     private static final String ACTIVITY_THREAD_CLASS = "android.app.ActivityThread";
     private static final String ACTIVITY_THREAD_CURRENTACTHREAD = "currentActivityThread";
@@ -52,19 +53,22 @@ public final class NoMapTips implements IXposedHookLoadPackage {
 
         String gmmUtilSomeSimpleInterface;
         String gmmUtilDialogClass;
-        String gmmUtilDialogMethod;
+        String gmmUtilDialogMethod = "a";
 
-        if(mapsVersion >= MAPS_VERSION_900) {
+        if(mapsVersion >= MAPS_VERSION_910) {
+            gmmUtilSomeSimpleInterface = "com.google.android.apps.gmm.util.g";
+            // public final a(ZLcom/google/android/apps/gmm/util/g;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
+            gmmUtilDialogClass = "com.google.android.apps.gmm.util.b";
+        }
+        else if(mapsVersion >= MAPS_VERSION_900) {
             gmmUtilSomeSimpleInterface = "com.google.android.apps.gmm.util.n";
             // public final a(ZLcom/google/android/apps/gmm/util/n;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
             gmmUtilDialogClass = "com.google.android.apps.gmm.util.i";
-            gmmUtilDialogMethod = "a";
         } else {
             // Maps 8 (and possibly before)
             gmmUtilSomeSimpleInterface = "com.google.android.apps.gmm.util.p";
             // public final a(ZLcom/google/android/apps/gmm/util/p;ILjava/lang/CharSequence;ILandroid/content/Intent;)V
             gmmUtilDialogClass = "com.google.android.apps.gmm.util.k";
-            gmmUtilDialogMethod = "a";
         }
 
         // We're hooking onto a utility method that creates and displays dialogs (like tips).
