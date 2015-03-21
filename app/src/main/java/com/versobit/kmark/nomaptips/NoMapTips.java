@@ -54,7 +54,8 @@ public final class NoMapTips implements IXposedHookLoadPackage {
 
         // Find Maps version or die trying
         Object activityThread = callStaticMethod(
-                findClass("android.app.ActivityThread", null), "currentActivityThread");
+                findClass("android.app.ActivityThread", null), "currentActivityThread"
+        );
         Context systemCtx = (Context)callMethod(activityThread, "getSystemContext");
         int mapsVersion;
         try {
@@ -118,9 +119,9 @@ public final class NoMapTips implements IXposedHookLoadPackage {
         // title) which could change at any time or be dependent on language. False-positive rate
         // should be pretty low.
         Class someInterface = findClass(gmmUtilSomeSimpleInterface, loader);
-        findAndHookMethod(gmmUtilDialogClass, loader,
-                gmmUtilDialogMethod, boolean.class, someInterface, int.class, CharSequence.class,
-                int.class, Intent.class, new XC_MethodHook() {
+        findAndHookMethod(gmmUtilDialogClass, loader, gmmUtilDialogMethod, boolean.class,
+                someInterface, int.class, CharSequence.class, int.class, Intent.class,
+                new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                         Intent buttonIntent = (Intent) param.args[5];
@@ -130,6 +131,7 @@ public final class NoMapTips implements IXposedHookLoadPackage {
                             param.setResult(null);
                         }
                     }
-                });
+                }
+        );
     }
 }
