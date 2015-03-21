@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Kevin Mark
+ * Copyright (C) 2014-2015 Kevin Mark
  *
  * This file is part of NoMapTips.
  *
@@ -21,36 +21,77 @@ package com.versobit.kmark.nomaptips;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.provider.Settings;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
+import static de.robv.android.xposed.XposedBridge.hookAllMethods;
+import static de.robv.android.xposed.XposedBridge.log;
+
+import static de.robv.android.xposed.XposedHelpers.callMethod;
+import static de.robv.android.xposed.XposedHelpers.callStaticMethod;
+import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
+import static de.robv.android.xposed.XposedHelpers.findClass;
+
 public final class NoMapTips implements IXposedHookLoadPackage {
+
+    private static final String TAG = NoMapTips.class.getSimpleName();
 
     private static final String MAPS_PKG_NAME = "com.google.android.apps.maps";
 
     private static final int MAPS_VERSION_900 = 900029103;
     private static final int MAPS_VERSION_910 = 901010000;
-
-    private static final String ACTIVITY_THREAD_CLASS = "android.app.ActivityThread";
-    private static final String ACTIVITY_THREAD_CURRENTACTHREAD = "currentActivityThread";
-    private static final String ACTIVITY_THREAD_GETSYSCTX = "getSystemContext";
+    private static final int MAPS_VERSION_951 = 905100000;
 
     @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
-        if(!loadPackageParam.packageName.equals(MAPS_PKG_NAME)) {
+    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpp) throws Throwable {
+        if(!MAPS_PKG_NAME.equals(lpp.packageName)) {
             return;
         }
 
-        Object activityThread = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass(ACTIVITY_THREAD_CLASS, null),
-                ACTIVITY_THREAD_CURRENTACTHREAD);
-        Context systemCtx = (Context)XposedHelpers.callMethod(activityThread, ACTIVITY_THREAD_GETSYSCTX);
-        int mapsVersion = systemCtx.getPackageManager().getPackageInfo(MAPS_PKG_NAME, 0).versionCode;
+        // Find Maps version or die trying
+        Object activityThread = callStaticMethod(
+                findClass("android.app.ActivityThread", null), "currentActivityThread");
+        Context systemCtx = (Context)callMethod(activityThread, "getSystemContext");
+        int mapsVersion;
+        try {
+            mapsVersion = systemCtx.getPackageManager().getPackageInfo(MAPS_PKG_NAME, 0).versionCode;
+        } catch (PackageManager.NameNotFoundException ex) {
+            log(TAG + ": Could not find Google Maps package...");
+            return;
+        }
 
+        if(mapsVersion < MAPS_VERSION_951) {
+            legacyMapsHook(lpp.classLoader, mapsVersion);
+        } else {
+            newMapsHook(lpp.classLoader, mapsVersion);
+        }
+    }
+
+    // "Tip" dialogs are back!
+    private static void newMapsHook(ClassLoader loader, int mapsVersion) {
+        // Finding the proper class is easy once you know what to look for. Just search for
+        // "com.google.android.gms.location.settings.CHECK_SETTINGS" in your decompile
+        String gmmMyLocSettingsChecker = "com.google.android.apps.gmm.mylocation.";
+
+        if(mapsVersion >= MAPS_VERSION_951) {
+            gmmMyLocSettingsChecker += "k";
+        }
+
+        // Using hookAll so I don't have to worry about updating the fourth PG'd argument
+        hookAllMethods(findClass(gmmMyLocSettingsChecker, loader), "a", new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                param.args[2] = true;
+            }
+        });
+    }
+
+    // Continue to offer support for Maps 8, 9.0 and 9.1
+    private static void legacyMapsHook(ClassLoader loader, int mapsVersion) {
         String gmmUtilSomeSimpleInterface;
         String gmmUtilDialogClass;
         String gmmUtilDialogMethod = "a";
@@ -76,19 +117,19 @@ public final class NoMapTips implements IXposedHookLoadPackage {
         // going on. Much more reliable than attempting to read resource values (like the dialog
         // title) which could change at any time or be dependent on language. False-positive rate
         // should be pretty low.
-        Class someInterface = XposedHelpers.findClass(gmmUtilSomeSimpleInterface, loadPackageParam.classLoader);
-        XposedHelpers.findAndHookMethod(gmmUtilDialogClass, loadPackageParam.classLoader,
+        Class someInterface = findClass(gmmUtilSomeSimpleInterface, loader);
+        findAndHookMethod(gmmUtilDialogClass, loader,
                 gmmUtilDialogMethod, boolean.class, someInterface, int.class, CharSequence.class,
                 int.class, Intent.class, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                Intent buttonIntent = (Intent)param.args[5];
-                if(Settings.ACTION_WIFI_SETTINGS.equals(buttonIntent.getAction())
-                        || Settings.ACTION_LOCATION_SOURCE_SETTINGS.equals(buttonIntent.getAction())) {
-                    // Prevent call to method when WiFi is off or location settings are non-optimal
-                    param.setResult(null);
-                }
-            }
-        });
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        Intent buttonIntent = (Intent) param.args[5];
+                        if (Settings.ACTION_WIFI_SETTINGS.equals(buttonIntent.getAction())
+                                || Settings.ACTION_LOCATION_SOURCE_SETTINGS.equals(buttonIntent.getAction())) {
+                            // Prevent call to method when WiFi is off or location settings are non-optimal
+                            param.setResult(null);
+                        }
+                    }
+                });
     }
 }
