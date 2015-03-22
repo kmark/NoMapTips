@@ -24,17 +24,23 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.provider.Settings;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import static de.robv.android.xposed.XposedBridge.hookAllMethods;
+import static de.robv.android.xposed.XposedBridge.hookMethod;
 import static de.robv.android.xposed.XposedBridge.log;
 
 import static de.robv.android.xposed.XposedHelpers.callMethod;
 import static de.robv.android.xposed.XposedHelpers.callStaticMethod;
 import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
 import static de.robv.android.xposed.XposedHelpers.findClass;
+import static de.robv.android.xposed.XposedHelpers.getStaticObjectField;
 
 public final class NoMapTips implements IXposedHookLoadPackage {
 
@@ -77,9 +83,15 @@ public final class NoMapTips implements IXposedHookLoadPackage {
         // Finding the proper class is easy once you know what to look for. Just search for
         // "com.google.android.gms.location.settings.CHECK_SETTINGS" in your decompile
         String gmmMyLocSettingsChecker = "com.google.android.apps.gmm.mylocation.";
+        // grep for android.settings.LOCATION_SOURCE_SETTINGS
+        String gmmMyLocSettingsDialog = "com.google.android.apps.gmm.mylocation.";
+        // Enum class returned from method in above class
+        String gmmMyLocSettingsEnum = "com.google.android.apps.gmm.mylocation.";
 
         if(mapsVersion >= MAPS_VERSION_951) {
             gmmMyLocSettingsChecker += "k";
+            gmmMyLocSettingsDialog += "n";
+            gmmMyLocSettingsEnum += "b.d";
         }
 
         // Using hookAll so I don't have to worry about updating the fourth PG'd argument
@@ -89,6 +101,33 @@ public final class NoMapTips implements IXposedHookLoadPackage {
                 param.args[2] = true;
             }
         });
+
+        // The "default" result from the settings dialog
+        final Object enumField = getStaticObjectField(
+                findClass(gmmMyLocSettingsEnum, loader),
+                "a"
+        );
+
+        // Avoid having to keep track of yet another class by searching for the correct method
+        for(Method m : findClass(gmmMyLocSettingsDialog, loader).getDeclaredMethods()) {
+            // Method is named "a" and is static
+            if(Modifier.isStatic(m.getModifiers()) && "a".equals(m.getName())) {
+                Class[] paramTypes = m.getParameterTypes();
+                // Method has two params and the second is an interface
+                if(paramTypes.length == 2 && paramTypes[1].isInterface()) {
+                    // Found it
+                    hookMethod(m, new XC_MethodReplacement() {
+                        @Override
+                        protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                            // Return the default response immediately, cutting out the checks
+                            return enumField;
+                        }
+                    });
+                    // Stop searching
+                    break;
+                }
+            }
+        }
     }
 
     // Continue to offer support for Maps 8, 9.0 and 9.1
