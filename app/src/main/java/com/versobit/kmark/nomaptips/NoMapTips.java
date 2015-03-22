@@ -130,7 +130,7 @@ public final class NoMapTips implements IXposedHookLoadPackage {
         }
     }
 
-    // Continue to offer support for Maps 8, 9.0 and 9.1
+    // Continue to offer support for Maps 8, 9.0, 9.1, and 9.2
     private static void legacyMapsHook(ClassLoader loader, int mapsVersion) {
         String gmmUtilSomeSimpleInterface;
         String gmmUtilDialogClass;
