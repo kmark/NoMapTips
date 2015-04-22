@@ -19,6 +19,7 @@
 
 package com.versobit.kmark.nomaptips;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -41,6 +42,7 @@ import static de.robv.android.xposed.XposedHelpers.callStaticMethod;
 import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
 import static de.robv.android.xposed.XposedHelpers.findClass;
 import static de.robv.android.xposed.XposedHelpers.getStaticObjectField;
+import static de.robv.android.xposed.XposedHelpers.setStaticBooleanField;
 
 public final class NoMapTips implements IXposedHookLoadPackage {
 
@@ -51,6 +53,7 @@ public final class NoMapTips implements IXposedHookLoadPackage {
     private static final int MAPS_VERSION_900 = 900029103;
     private static final int MAPS_VERSION_910 = 901010000;
     private static final int MAPS_VERSION_951 = 905100000;
+    private static final int MAPS_VERSION_971 = 907100000;
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpp) throws Throwable {
@@ -71,11 +74,34 @@ public final class NoMapTips implements IXposedHookLoadPackage {
             return;
         }
 
-        if(mapsVersion < MAPS_VERSION_951) {
-            legacyMapsHook(lpp.classLoader, mapsVersion);
-        } else {
+        if(mapsVersion >= MAPS_VERSION_971) {
+            dex2MapsHook(lpp.classLoader, mapsVersion);
+        } else if(mapsVersion >= MAPS_VERSION_951) {
             newMapsHook(lpp.classLoader, mapsVersion);
+        } else {
+            legacyMapsHook(lpp.classLoader, mapsVersion);
         }
+    }
+
+    // We now need to dig a little deeper as of Maps v9.7.1
+    private static void dex2MapsHook(final ClassLoader loader, final int mapsVersion) {
+        findAndHookMethod(Application.class, "attach", Context.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                // Appears to be the primary control point for location setting checks
+                String gmmMyLocStatusManager = "com.google.android.apps.gmm.mylocation.";
+                String gmmMyLocStatusBit = "";
+
+                if(mapsVersion >= MAPS_VERSION_971) {
+                    gmmMyLocStatusManager += "q";
+                    gmmMyLocStatusBit = "c";
+                }
+
+                setStaticBooleanField(
+                        findClass(gmmMyLocStatusManager, loader), gmmMyLocStatusBit, false
+                );
+            }
+        });
     }
 
     // "Tip" dialogs are back!
